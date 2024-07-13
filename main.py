@@ -3,9 +3,8 @@ import time
 import sqlite3
 import os
 from collections import deque
-# import pdb; pdb.set_trace()
 
-
+# ура работает 
 def get_info():
     response = requests.get(url="https://yobit.net/api/3/info")
 
@@ -132,7 +131,6 @@ def main():
             current_price = price(coin1)
             os.system('cls' if os.name == 'nt' else 'clear')
             # print(f'Глубина: {depth[12:17]}') 
-            print(depth)
             print(f"Текущая цена: {current_price_depth}")
             print(f'Продажи: {one_trades[0]} $')
             print(f'Покупки: {one_trades[1]} $')
