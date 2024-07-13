@@ -4,7 +4,6 @@ import sqlite3
 import os
 from collections import deque
 
-# ура работает 
 def get_info():
     response = requests.get(url="https://yobit.net/api/3/info")
 
@@ -15,61 +14,46 @@ def get_info():
 
 
 def get_ticker(coin1="btc", coin2="usd"):
-    # response = requests.get(url="https://yobit.net/api/3/ticker/eth_btc-xrp_btccc?ignore_invalid=1")
     response = requests.get(url=f"https://yobit.net/api/3/ticker/{coin1}_{coin2}?ignore_invalid=1")
-
     with open("ticker.txt", "w") as file:
         file.write(response.text)
-
     return response.text
 
 
 def get_depth(coin1="btc", coin2="usd", limit=150):
     response = requests.get(url=f"https://yobit.net/api/3/depth/{coin1}_{coin2}?limit={limit}&ignore_invalid=1")
-
     with open("depth.txt", "w") as file:
         file.write(response.text)
-
     bids = response.json()[f"{coin1}_usd"]["bids"]
-
     total_bids_amount = 0
     for item in bids:
         price = item[0]
         coin_amount = item[1]
-
         total_bids_amount += price * coin_amount
-
     return f"Total bids: {total_bids_amount} $"
 
 
 def get_trades(coin1="btc", coin2="usd", limit=150):
     response = requests.get(url=f"https://yobit.net/api/3/trades/{coin1}_{coin2}?limit={limit}&ignore_invalid=1")
-
     with open("trades.txt", "w") as file:
         file.write(response.text)
-
     total_trade_ask = 0
     total_trade_bid = 0
-
     for item in response.json()[f"{coin1}_{coin2}"]:
         if item["type"] == "ask":
             total_trade_ask += item["price"] * item["amount"]
         else:
             total_trade_bid += item["price"] * item["amount"]
-
-    # info = f"[-] TOTAL {coin1} SELL: {round(total_trade_ask, 2)} $\n[+] TOTAL {coin1} BUY: {round(total_trade_bid, 2)} $"
-    
     info = [round(total_trade_ask), round(total_trade_bid, 2)]
-
     return info
+
 def price(coin1="btc", coin2="usd"):
     session = requests.Session()
-    # get_price = requests.get(url=f"https://yobit.net/api/3/ticker/{coin1}_{coin2}?ignore_invalid=1")
-    # sss = get_price.json()[f'{coin1}_{coin2}']['sell']
     get_price = session.get(f'https://api-testnet.bybit.com//v5/market/tickers?category=inverse&symbol={coin1.upper()}{coin2.upper()}')
     sss = get_price.json()['result']['list'][0]['lastPrice']
-
     return sss
+
+
 # def main():
 #     while True:
 #         time.sleep(0.1)
@@ -110,7 +94,6 @@ def check_price_jump(depth, threshold=10):
     max_price = max(prices)
     percent_jump = ((max_price - min_price) / min_price) * 100
     return percent_jump > threshold, percent_jump
-
 prices = deque(maxlen=5)
 
 def main():
@@ -125,12 +108,10 @@ def main():
             depth = get_depth(coin1)[12:22]
             current_price_depth = depth
             prices.append(current_price_depth)
-        
             time.sleep(1)
             one_trades = get_trades(coin1)
             current_price = price(coin1)
             os.system('cls' if os.name == 'nt' else 'clear')
-            # print(f'Глубина: {depth[12:17]}') 
             print(f"Текущая цена: {current_price_depth}")
             print(f'Продажи: {one_trades[0]} $')
             print(f'Покупки: {one_trades[1]} $')
