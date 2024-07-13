@@ -2,6 +2,7 @@ import requests
 import time
 import sqlite3
 import os
+from collections import deque
 # import pdb; pdb.set_trace()
 
 
@@ -62,11 +63,11 @@ def get_trades(coin1="btc", coin2="usd", limit=150):
     info = [round(total_trade_ask), round(total_trade_bid, 2)]
 
     return info
-def price(coin1="BTC", coin2="USD"):
+def price(coin1="btc", coin2="usd"):
     session = requests.Session()
     # get_price = requests.get(url=f"https://yobit.net/api/3/ticker/{coin1}_{coin2}?ignore_invalid=1")
     # sss = get_price.json()[f'{coin1}_{coin2}']['sell']
-    get_price = session.get(f'https://api-testnet.bybit.com//v5/market/tickers?category=inverse&symbol={coin1}{coin2}')
+    get_price = session.get(f'https://api-testnet.bybit.com//v5/market/tickers?category=inverse&symbol={coin1.upper()}{coin2.upper()}')
     sss = get_price.json()['result']['list'][0]['lastPrice']
 
     return sss
@@ -93,6 +94,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS price_history (
                     price REAL
                 )''')
 
+
 def get_previous_price():
     cursor.execute('DELETE FROM price_history WHERE rowid NOT IN (SELECT rowid FROM price_history ORDER BY rowid DESC LIMIT 2);')
     cursor.execute('SELECT price FROM price_history ORDER BY id DESC LIMIT 1')
@@ -101,23 +103,40 @@ def get_previous_price():
         return row[0]
     else:
         return None
+
+def check_price_jump(depth, threshold=10):
+    if len(prices) < 5:
+        return False, 0
+    min_price = min(prices)
+    max_price = max(prices)
+    percent_jump = ((max_price - min_price) / min_price) * 100
+    return percent_jump > threshold, percent_jump
+
+prices = deque(maxlen=5)
+
 def main():
     balance = 10000
     minus = 1000
-    lot = 1.0
-    sall_ = 1.0  
+    lot = 0.0
+    sall_ = 0.0  
+    persent = 10000 
     while True:
-        try: 
+        try:
+            coin1 = 'btc'
+            depth = get_depth(coin1)[12:22]
+            current_price_depth = depth
+            prices.append(current_price_depth)
+        
             time.sleep(1)
-            one_trades = get_trades(coin1="btc")
-            current_price = price(coin1='BTC')
-
+            one_trades = get_trades(coin1)
+            current_price = price(coin1)
             os.system('cls' if os.name == 'nt' else 'clear')
-            
+            # print(f'Глубина: {depth[12:17]}') 
+            print(depth)
+            print(f"Текущая цена: {current_price_depth}")
             print(f'Продажи: {one_trades[0]} $')
             print(f'Покупки: {one_trades[1]} $')
-            # print(one_trades[12:-9])
-            if one_trades[1] > one_trades[0]*1.1:
+            if one_trades[1] > one_trades[0]*1.2: #Уведомление о ПОКУПАТЬ или ПРОДАВАТЬ
                 print("\033[92mПокупать!\033[0m")
             else:
                 print("\033[91mПродавать!\033[0m")
@@ -125,7 +144,10 @@ def main():
             print(f'balance: {round(balance, 2)} $')
             print(f'куплено за: {lot}')
             print('продано за:', sall_)
-            
+            cursor.execute('DELETE FROM buy_sell WHERE rowid NOT IN (SELECT rowid FROM buy_sell ORDER BY rowid DESC LIMIT 10);')
+            cursor.execute('INSERT OR IGNORE INTO buy_sell (sell) VALUES (?)', (one_trades[1],))
+            cursor.execute('INSERT OR IGNORE INTO buy_sell (buy) VALUES (?)', (one_trades[0],))
+            conn.commit()           
             previous_price = get_previous_price()
             if previous_price is not None:
                 if previous_price > float(current_price):
@@ -142,24 +164,21 @@ def main():
             cursor.execute('INSERT INTO price_history (price) VALUES (?)', (current_price,))
             conn.commit()
             
-            if balance >= 10000 and one_trades[1] > one_trades[0]*1.1:
+            if balance >= persent and one_trades[1] > one_trades[0]*1.2: #Сравнение покупать или не покупать
                 balance = balance - minus
                 lot = float(current_price[:8]) 
                 
                     # breakpoint()
-                # if lot + lot/10000 > (float(current_price[:8]) + (float(current_price[:8]) / 10000)): #рабочая 
-                if (float(current_price[:8])) > lot + lot/10000:
-                    # sall_ = lot + round(lot / 10000, 2)
-                    sall_ = float(current_price[:8])
-                    balance = balance + (minus + round(minus / 10000, 2))
-                    # lot = 0.0
-                    # sall_ = 0.0
-                else:
-                    pass
-        except ZeroDivisionError:
-            # Do nothing if ZeroDivisionError occurs
-            pass
+            if lot + lot/persent < (float(current_price[:8])) and balance < 10000: # + (float(current_price[:8]) / persent)): #рабочая 
+            # if (float(current_price[:8])) > lot + lot/10000:
+                sall_ = lot + round(lot / persent, 2)
+                # sall_ = float(current_price[:8])
+                balance = balance + (minus + round(minus / persent, 2))
+                # lot = 0.0
+                # sall_ = 0.0
+            else:
+                pass
+        except Exception:
+           pass # игнорировать все ошибки 
 if __name__ == '__main__':
     main()
-    # hello 
-    
