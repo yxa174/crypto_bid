@@ -6,7 +6,6 @@ from collections import deque
 
 def get_info():
     response = requests.get(url="https://yobit.net/api/3/info")
-
     with open("info.txt", "w") as file:
         file.write(response.text)
 
@@ -30,7 +29,7 @@ def get_depth(coin1="btc", coin2="usd", limit=150):
         price = item[0]
         coin_amount = item[1]
         total_bids_amount += price * coin_amount
-    return f"Total bids: {total_bids_amount} $"
+    return total_bids_amount
 
 
 def get_trades(coin1="btc", coin2="usd", limit=150):
@@ -87,14 +86,14 @@ def get_previous_price():
     else:
         return None
 
-def check_price_jump(depth, threshold=10):
-    if len(prices) < 5:
+def check_price_jump(prices, threshold=0.5): # threshold=1 процент (1) скачка цены
+    if len(prices) < 10:
         return False, 0
     min_price = min(prices)
     max_price = max(prices)
     percent_jump = ((max_price - min_price) / min_price) * 100
     return percent_jump > threshold, percent_jump
-prices = deque(maxlen=5)
+prices = deque(maxlen=10)
 
 def main():
     balance = 10000
@@ -102,12 +101,14 @@ def main():
     lot = 0.0
     sall_ = 0.0  
     persent = 10000 
+    sends = 'Нет скачка'
     while True:
         try:
-            coin1 = 'btc'
-            depth = get_depth(coin1)[12:22]
+            coin1 = 'eth'
+            depth = int(get_depth(coin1))
             current_price_depth = depth
             prices.append(current_price_depth)
+
             time.sleep(1)
             one_trades = get_trades(coin1)
             current_price = price(coin1)
@@ -115,10 +116,11 @@ def main():
             print(f"Текущая цена: {current_price_depth}")
             print(f'Продажи: {one_trades[0]} $')
             print(f'Покупки: {one_trades[1]} $')
-            if one_trades[1] > one_trades[0]*1.2: #Уведомление о ПОКУПАТЬ или ПРОДАВАТЬ
-                print("\033[92mПокупать!\033[0m")
-            else:
-                print("\033[91mПродавать!\033[0m")
+            print(f"\033[91m{sends}\033[0m")
+            # if one_trades[1] > one_trades[0]*1.2: #Уведомление о ПОКУПАТЬ или ПРОДАВАТЬ
+            #     print("\033[92mПокупать!\033[0m")
+            # else:
+            #     print("\033[91mПродавать!\033[0m")
 
             print(f'balance: {round(balance, 2)} $')
             print(f'куплено за: {lot}')
@@ -138,25 +140,35 @@ def main():
 
             s = f"{current_price}{arrow}"
             print(s)
+            
 
             # Insert the current price into the price_history table
             cursor.execute('INSERT INTO price_history (price) VALUES (?)', (current_price,))
             conn.commit()
-            
-            if balance >= persent and one_trades[1] > one_trades[0]*1.2: #Сравнение покупать или не покупать
-                balance = balance - minus
-                lot = float(current_price[:8]) 
-                
-                    # breakpoint()
+            if len(prices) == 10:
+                jump_detected, percent_jump = check_price_jump(prices)
+                if jump_detected:
+                    sends = (f"\033[92mОбнаружен высокий скачок цены: {percent_jump:.2f}%\033[0m")
+                    prices.clear()  # Удаление данных последних 5 сохранений
+
+                    if balance >= persent and one_trades[1] > one_trades[0]*1.2: #Сравнение покупать или не покупать
+                        balance = balance - minus
+                        lot = float(current_price[:8]) 
+                        
+                        # breakpoint()
             if lot + lot/persent < (float(current_price[:8])) and balance < 10000: # + (float(current_price[:8]) / persent)): #рабочая 
-            # if (float(current_price[:8])) > lot + lot/10000:
                 sall_ = lot + round(lot / persent, 2)
-                # sall_ = float(current_price[:8])
                 balance = balance + (minus + round(minus / persent, 2))
-                # lot = 0.0
-                # sall_ = 0.0
             else:
                 pass
+
+
+
+
+
+
+
+
         except Exception:
            pass # игнорировать все ошибки 
 if __name__ == '__main__':
